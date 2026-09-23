@@ -617,17 +617,26 @@
     let currentTrackIndex = -1;
     let isFetching = false;
     let currentMoodQuery = "top hindi chill acoustic lofi songs volume 1";
-    let currentQueryPage = 1;
     let isShuffle = true;
     
     // Strict non-repeating tracking structures
     const seenTrackIds = new Set();
-    const playedHistoryIds = new Set();
+    const seenSongTitles = new Set();
     let unplayedQueue = [];
     let scrollObserver = null;
 
-    // Discovery fallbacks to guarantee new unique songs across diverse genres
-    const SHUFFLE_SEEDS = [
+    // Helper: strip tags and re-upload keywords to identify duplicate songs/covers
+    function getCleanTitle(title) {
+      return title
+        .toLowerCase()
+        .replace(/[\(\[\{].*?[\)\]\}]/g, "")
+        .replace(/official|audio|video|lyric|lyrics|full song|slowed|reverb|lofi|remix|hd|4k|cover/gi, "")
+        .replace(/[^a-z0-9\s]/g, "")
+        .trim();
+    }
+
+    // Varied fallbacks to ensure new songs continuously flow
+    const DISCOVERY_SEEDS = [
       "trending hindi acoustic",
       "bollywood evergreen lofi chill",
       "indie pop hindi sensations",
@@ -660,9 +669,7 @@
     resizeCanvas();
 
     class CosmicParticle {
-      constructor() {
-        this.reset();
-      }
+      constructor() { this.reset(); }
       reset() {
         this.x = Math.random() * canvas.width;
         this.y = Math.random() * canvas.height;
@@ -692,10 +699,7 @@
 
     function animateSpace() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      particles.forEach(p => {
-        p.update();
-        p.draw();
-      });
+      particles.forEach(p => { p.update(); p.draw(); });
       requestAnimationFrame(animateSpace);
     }
     animateSpace();
@@ -719,13 +723,10 @@
           for (let i = 0; i < px.length; i += 4) {
             const brightness = (px[i] + px[i + 1] + px[i + 2]) / 3;
             if (brightness > 30 && brightness < 225) {
-              r += px[i];
-              g += px[i + 1];
-              b += px[i + 2];
+              r += px[i]; g += px[i + 1]; b += px[i + 2];
               count++;
             }
           }
-
           if (count > 0) {
             r = Math.round(r / count);
             g = Math.round(g / count);
@@ -734,15 +735,13 @@
             document.documentElement.style.setProperty("--accent-g", g);
             document.documentElement.style.setProperty("--accent-b", b);
           }
-        } catch (e) {
-          // Keep active palette safely
-        }
+        } catch (e) {}
       };
     }
 
-    /* Auto Advance and Infinite Non-Repeating Continuous Category Recommendation */
+    /* Auto Advance to completely new songs */
     audio.addEventListener("ended", async () => {
-      await playNextTrack(true);
+      await playNextTrack();
     });
 
     audio.addEventListener("timeupdate", () => {
@@ -776,44 +775,40 @@
         return;
       }
       if (audio.paused) {
-        audio.play().catch(e => console.error("Playback prevented:", e));
+        audio.play().catch(e => console.error("Playback error:", e));
       } else {
         audio.pause();
       }
     }
 
-    async function playNextTrack(isAuto = false) {
-      // Ensure we always have unplayed candidates available
+    async function playNextTrack() {
+      // If queue is running low, automatically fetch tracks based on the artist or category (not the track name)
       if (unplayedQueue.length <= 2) {
-        const currentSong = activePlaylist[currentTrackIndex] || activePlaylist[0];
-        let smartQuery = currentMoodQuery;
+        const cur = activePlaylist[currentTrackIndex] || activePlaylist[0];
+        let pivotQuery = "";
 
-        if (currentSong) {
-          const queryBase = (currentSong.artist || currentSong.uploader || currentSong.title).replace(/vevo|official|audio|video/gi, "").trim();
-          const randomSeed = SHUFFLE_SEEDS[Math.floor(Math.random() * SHUFFLE_SEEDS.length)];
-          smartQuery = `${queryBase} ${randomSeed}`;
+        if (cur && cur.artist && !cur.artist.includes("Topic") && !cur.artist.includes("Soundscape")) {
+          // Pivot search to other hit songs by the same singer/artist
+          pivotQuery = `${cur.artist} greatest hits audio`;
+        } else {
+          // Pivot to a varied mood radio seed
+          pivotQuery = DISCOVERY_SEEDS[Math.floor(Math.random() * DISCOVERY_SEEDS.length)];
         }
-
-        currentQueryPage++;
-        await fetchTracks(smartQuery, false);
+        await fetchTracks(pivotQuery, false);
       }
 
-      if (activePlaylist.length === 0) return;
-
-      let nextIndex = -1;
-
-      if (isShuffle && unplayedQueue.length > 0) {
-        // Pick from completely unplayed songs first
-        const randQueueIndex = Math.floor(Math.random() * unplayedQueue.length);
-        const chosenSong = unplayedQueue.splice(randQueueIndex, 1)[0];
-        nextIndex = activePlaylist.findIndex(s => s.id === chosenSong.id);
+      if (unplayedQueue.length > 0) {
+        const nextSong = unplayedQueue.shift();
+        const nextIndex = activePlaylist.findIndex(s => s.id === nextSong.id);
+        if (nextIndex !== -1) {
+          streamSongAt(nextIndex);
+          scrollToSlide(nextIndex);
+          return;
+        }
       }
 
-      // Fallback: sequential next if all unplayed are exhausted
-      if (nextIndex === -1) {
-        nextIndex = (currentTrackIndex + 1) % activePlaylist.length;
-      }
-
+      // Fallback: move to the next slide in sequence
+      const nextIndex = (currentTrackIndex + 1) % activePlaylist.length;
       streamSongAt(nextIndex);
       scrollToSlide(nextIndex);
     }
@@ -826,7 +821,7 @@
     }
 
     function playNext() {
-      playNextTrack(false);
+      playNextTrack();
     }
 
     function scrollToSlide(idx) {
@@ -843,7 +838,6 @@
       audio.currentTime = clickPos * audio.duration;
     }
 
-    /* Scroll Observer for Ambient Color Shifting & Dot Activation */
     function setupScrollObserver() {
       if (scrollObserver) scrollObserver.disconnect();
 
@@ -862,8 +856,9 @@
             if (thumb) adaptColorsFromPoster(thumb);
 
             if (index >= activePlaylist.length - 2 && !isFetching) {
-              currentQueryPage++;
-              fetchTracks(`${currentMoodQuery} volume ${currentQueryPage}`, false);
+              const cur = activePlaylist[index];
+              const query = cur?.artist ? `${cur.artist} songs playlist` : DISCOVERY_SEEDS[0];
+              fetchTracks(query, false);
             }
           }
         });
@@ -872,7 +867,7 @@
       slides.forEach(slide => scrollObserver.observe(slide));
     }
 
-    /* Track Feed Resolution */
+    /* Core Track Fetcher with Title & ID Deduplication */
     async function fetchTracks(query, reset = false) {
       if (isFetching) return;
       isFetching = true;
@@ -881,27 +876,37 @@
         const res = await fetch(`${API_BASE}/search?q=${encodeURIComponent(query)}`);
         const data = await res.json();
         const rawTracks = Array.isArray(data) ? data : (data.tracks || []);
-        
-        // Exclude all previously encountered songs
-        const freshSongs = rawTracks.filter(s => s && s.id && !seenTrackIds.has(s.id));
 
         if (reset) {
           feed.innerHTML = "";
           dotsContainer.innerHTML = "";
           activePlaylist = [];
           unplayedQueue = [];
-          currentQueryPage = 1;
+          seenTrackIds.clear();
+          seenSongTitles.clear();
         }
 
-        freshSongs.forEach(song => {
-          seenTrackIds.add(song.id);
+        // Strict filtering: Discard duplicates by video ID AND by similar title
+        const filteredNewTracks = [];
+        for (const track of rawTracks) {
+          if (!track || !track.id || seenTrackIds.has(track.id)) continue;
+
+          const simplified = getCleanTitle(track.title);
+          // If we already added a song with this base title, skip covers/duplicates
+          if (simplified.length > 3 && seenSongTitles.has(simplified)) continue;
+
+          seenTrackIds.add(track.id);
+          if (simplified.length > 3) seenSongTitles.add(simplified);
+          filteredNewTracks.push(track);
+        }
+
+        filteredNewTracks.forEach(song => {
           unplayedQueue.push(song);
-          
           const trackIdx = activePlaylist.length;
           activePlaylist.push(song);
 
-          const thumb = song.thumbnail || song.poster || `https://i.ytimg.com/vi/${song.id}/hqdefault.jpg`;
-          const artist = song.artist || song.uploader || "AuraStream Soundscape";
+          const thumb = song.thumbnail || `https://i.ytimg.com/vi/${song.id}/hqdefault.jpg`;
+          const artist = song.artist || "AuraStream Artist";
 
           const dot = document.createElement("div");
           dot.className = `hint-dot ${trackIdx === 0 ? 'active' : ''}`;
@@ -916,7 +921,7 @@
           slide.dataset.thumb = thumb;
           slide.innerHTML = `
             <div class="song-layout">
-              <div class="context-tag">✦ INFINITE SOUNDSCAPE // #${trackIdx + 1}</div>
+              <div class="context-tag">✦ CONTINUOUS DISCOVERY // #${trackIdx + 1}</div>
               <h1 class="track-name">${song.title}</h1>
               <div class="artist-name">${artist}</div>
               <button class="action-btn" onclick="streamSongAt(${trackIdx})">
@@ -935,16 +940,15 @@
           feed.appendChild(slide);
         });
 
-        // If a query yielded only duplicates, pull from discovery seeds automatically
-        if (freshSongs.length === 0 && !reset) {
-          const fallbackSeed = SHUFFLE_SEEDS[Math.floor(Math.random() * SHUFFLE_SEEDS.length)];
-          currentQueryPage++;
-          setTimeout(() => fetchTracks(`${fallbackSeed} volume ${currentQueryPage}`, false), 300);
+        // If the initial search for a specific title returned mostly duplicate covers, 
+        // immediately fetch additional tracks from the artist's discography to fill the queue
+        if (reset && filteredNewTracks.length < 5 && filteredNewTracks[0]?.artist) {
+          const leadArtist = filteredNewTracks[0].artist;
+          setTimeout(() => fetchTracks(`${leadArtist} top tracks`, false), 400);
         }
 
         if (reset && activePlaylist[0]) {
-          const firstThumb = activePlaylist[0].thumbnail || activePlaylist[0].poster;
-          adaptColorsFromPoster(firstThumb);
+          adaptColorsFromPoster(activePlaylist[0].thumbnail);
         }
 
         setupScrollObserver();
@@ -960,13 +964,12 @@
       if (!activePlaylist[idx]) return;
       currentTrackIndex = idx;
       const song = activePlaylist[idx];
-      
-      // Register into played history and remove from unplayed pool
-      playedHistoryIds.add(song.id);
+
+      // Remove from unplayed queue so it never repeats
       unplayedQueue = unplayedQueue.filter(s => s.id !== song.id);
 
-      const thumb = song.thumbnail || song.poster || `https://i.ytimg.com/vi/${song.id}/hqdefault.jpg`;
-      const artist = song.artist || song.uploader || "AuraStream Soundscape";
+      const thumb = song.thumbnail || `https://i.ytimg.com/vi/${song.id}/hqdefault.jpg`;
+      const artist = song.artist || "AuraStream Artist";
 
       dockTitle.textContent = song.title;
       dockSub.textContent = artist;
@@ -977,7 +980,6 @@
       try {
         const res = await fetch(`${API_BASE}/stream/${song.id}`);
         const streamData = await res.json();
-
         if (streamData && streamData.streamUrl) {
           audio.src = streamData.streamUrl;
           await audio.play();
