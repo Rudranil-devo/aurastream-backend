@@ -1,0 +1,1022 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AuraStream — Infinite Soundscape</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=Caveat:wght@600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #030306;
+      --text: #ffffff;
+      --text-sub: #9ca3af;
+      --accent-r: 99;
+      --accent-g: 102;
+      --accent-b: 241;
+      --accent: rgb(var(--accent-r), var(--accent-g), var(--accent-b));
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: 'Plus Jakarta Sans', sans-serif;
+    }
+
+    /* Fullscreen 3D Ambient Dust Canvas */
+    #ambientCanvas {
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
+      z-index: 1;
+      pointer-events: none;
+    }
+
+    /* Asymmetric poster-side dynamic aura */
+    .dynamic-aura {
+      position: fixed;
+      inset: 0;
+      background: radial-gradient(circle at 82% 50%, rgba(var(--accent-r), var(--accent-g), var(--accent-b), 0.38) 0%, rgba(var(--accent-r), var(--accent-g), var(--accent-b), 0.12) 45%, transparent 75%),
+                  radial-gradient(circle at 20% 50%, rgba(10, 12, 24, 0.95), transparent 70%);
+      z-index: 0;
+      transition: background 1.4s cubic-bezier(0.16, 1, 0.3, 1);
+      pointer-events: none;
+    }
+
+    /* Header Nav */
+    header {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 72px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 4rem;
+      gap: 2rem;
+      backdrop-filter: blur(28px);
+      background: rgba(3, 3, 6, 0.45);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      z-index: 60;
+    }
+
+    .brand-section {
+      display: flex;
+      align-items: center;
+      gap: 1.8rem;
+    }
+
+    .aura-logo {
+      font-family: 'Cinzel', serif;
+      font-size: 1.6rem;
+      font-weight: 800;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      background: linear-gradient(135deg, #ffffff 45%, #a1a1aa);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .lang-pill {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 999px;
+      padding: 0.25rem 0.65rem 0.25rem 0.9rem;
+      font-size: 0.75rem;
+      color: var(--text-sub);
+    }
+
+    .lang-badge {
+      background: #ffffff;
+      color: #000000;
+      font-weight: 800;
+      padding: 0.2rem 0.65rem;
+      border-radius: 999px;
+      font-size: 0.72rem;
+      letter-spacing: 0.05em;
+    }
+
+    .search-wrapper {
+      position: relative;
+      flex: 1;
+      max-width: 480px;
+      display: flex;
+      align-items: center;
+    }
+
+    .search-input {
+      width: 100%;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      padding: 0.65rem 5.8rem 0.65rem 1.4rem;
+      border-radius: 999px;
+      color: #fff;
+      font-family: inherit;
+      font-size: 0.88rem;
+      outline: none;
+      transition: all 0.3s ease;
+    }
+
+    .search-input:focus {
+      border-color: var(--accent);
+      background: rgba(255, 255, 255, 0.08);
+      box-shadow: 0 0 25px rgba(var(--accent-r), var(--accent-g), var(--accent-b), 0.35);
+    }
+
+    .search-btn {
+      position: absolute;
+      right: 4px;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      padding: 0.5rem 1.3rem;
+      border-radius: 999px;
+      font-weight: 700;
+      font-size: 0.8rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .search-btn:hover {
+      filter: brightness(1.15);
+      transform: scale(1.02);
+    }
+
+    /* Fixed Category / Mood Rack */
+    .mood-rack {
+      position: fixed;
+      top: 72px;
+      left: 0;
+      width: 100%;
+      display: flex;
+      gap: 0.8rem;
+      padding: 0.8rem 4rem;
+      background: rgba(3, 3, 6, 0.3);
+      backdrop-filter: blur(18px);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+      overflow-x: auto;
+      scrollbar-width: none;
+      z-index: 50;
+    }
+    .mood-rack::-webkit-scrollbar { display: none; }
+
+    .mood-btn {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      color: var(--text-sub);
+      padding: 0.45rem 1.25rem;
+      border-radius: 999px;
+      font-size: 0.8rem;
+      font-weight: 500;
+      white-space: nowrap;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      transition: all 0.25s ease;
+    }
+
+    .mood-btn:hover, .mood-btn.active {
+      background: #ffffff;
+      color: #000000;
+      border-color: #ffffff;
+      font-weight: 600;
+      transform: translateY(-1px);
+    }
+
+    /* Right Navigation Hint Dots */
+    .hint-dots-container {
+      position: fixed;
+      right: 2.5rem;
+      top: 50%;
+      transform: translateY(-50%);
+      display: flex;
+      flex-direction: column;
+      gap: 0.9rem;
+      z-index: 70;
+    }
+
+    .hint-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.2);
+      transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+      cursor: pointer;
+    }
+
+    .hint-dot.active {
+      background: var(--accent);
+      transform: scale(1.6);
+      box-shadow: 0 0 14px var(--accent);
+    }
+
+    /* Full-Screen Edge-to-Edge Feed */
+    #feed {
+      width: 100vw;
+      height: 100vh;
+      overflow-y: scroll;
+      scroll-snap-type: y mandatory;
+      scroll-behavior: smooth;
+      position: relative;
+      z-index: 10;
+    }
+    #feed::-webkit-scrollbar { display: none; }
+
+    .dimension-slide {
+      width: 100vw;
+      height: 100vh;
+      scroll-snap-align: start;
+      scroll-snap-stop: always;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 9vw;
+      position: relative;
+      transform-style: preserve-3d;
+    }
+
+    /* Left Side: Typography & Metadata */
+    .song-layout {
+      flex: 1;
+      max-width: 580px;
+      display: flex;
+      flex-direction: column;
+      gap: 1.1rem;
+      z-index: 2;
+    }
+
+    .context-tag {
+      font-size: 0.78rem;
+      font-weight: 700;
+      letter-spacing: 0.18em;
+      color: var(--accent);
+      text-transform: uppercase;
+      transition: color 0.8s ease;
+    }
+
+    .track-name {
+      font-family: 'Cinzel', serif;
+      font-size: 3.2rem;
+      font-weight: 700;
+      line-height: 1.2;
+      color: #ffffff;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      text-shadow: 0 10px 30px rgba(0, 0, 0, 0.7);
+    }
+
+    .artist-name {
+      color: var(--text-sub);
+      font-size: 1.35rem;
+      font-weight: 400;
+    }
+
+    .action-btn {
+      align-self: flex-start;
+      margin-top: 1.4rem;
+      background: rgba(255, 255, 255, 0.1);
+      color: #ffffff;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      padding: 0.95rem 2.4rem;
+      border-radius: 999px;
+      font-weight: 600;
+      font-size: 0.95rem;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.75rem;
+      backdrop-filter: blur(12px);
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .action-btn:hover {
+      background: #ffffff;
+      color: #000000;
+      transform: scale(1.05);
+      box-shadow: 0 8px 30px rgba(255, 255, 255, 0.35);
+    }
+
+    /* Right Side: Fullscreen Dynamic Ambient Vinyl Station */
+    .cover-station {
+      position: relative;
+      width: 440px;
+      height: 440px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      cursor: pointer;
+    }
+
+    .cover-aura {
+      position: absolute;
+      inset: -50px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(var(--accent-r), var(--accent-g), var(--accent-b), 0.45) 0%, transparent 70%);
+      filter: blur(40px);
+      z-index: 0;
+      transition: background 1.2s ease;
+      pointer-events: none;
+    }
+
+    .album-jacket {
+      width: 340px;
+      height: 340px;
+      object-fit: cover;
+      border-radius: 26px;
+      position: relative;
+      z-index: 2;
+      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.85);
+      transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .vinyl-disc {
+      position: absolute;
+      top: 50px;
+      right: 15px;
+      width: 320px;
+      height: 320px;
+      border-radius: 50%;
+      background: radial-gradient(circle, #050505 28%, #161616 29%, #050505 52%, #1a1a1a 53%, #050505 70%);
+      border: 3px solid #222;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.9);
+      z-index: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .vinyl-groove {
+      width: 115px;
+      height: 115px;
+      border-radius: 50%;
+      background-size: cover;
+      background-position: center;
+      border: 4px solid #111;
+      box-shadow: inset 0 0 15px rgba(0,0,0,0.8);
+    }
+
+    .cover-station:hover .vinyl-disc,
+    .dimension-slide.playing .vinyl-disc {
+      transform: translateX(85px) rotate(45deg);
+    }
+
+    .dimension-slide.playing .vinyl-disc {
+      animation: rotateVinyl 8s linear infinite;
+    }
+
+    @keyframes rotateVinyl {
+      from { transform: translateX(85px) rotate(0deg); }
+      to { transform: translateX(85px) rotate(360deg); }
+    }
+
+    /* Player Dock */
+    .player-dock {
+      position: fixed;
+      bottom: 2rem;
+      left: 50%;
+      transform: translateX(-50%);
+      width: calc(100% - 8rem);
+      max-width: 960px;
+      background: rgba(11, 12, 20, 0.75);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      backdrop-filter: blur(35px);
+      border-radius: 999px;
+      padding: 0.85rem 2.4rem;
+      display: flex;
+      align-items: center;
+      gap: 1.6rem;
+      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.9);
+      z-index: 100;
+    }
+
+    .dock-art {
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      object-fit: cover;
+      background: #181926;
+      flex-shrink: 0;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+    }
+
+    .dock-meta {
+      display: flex;
+      flex-direction: column;
+      max-width: 220px;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+
+    .dock-title {
+      font-size: 0.92rem;
+      font-weight: 600;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      overflow: hidden;
+    }
+
+    .dock-sub {
+      font-size: 0.75rem;
+      color: var(--text-sub);
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      overflow: hidden;
+    }
+
+    .dock-controls {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .dock-icon-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-sub);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      transition: color 0.2s ease;
+    }
+
+    .dock-icon-btn:hover {
+      color: #fff;
+    }
+
+    .dock-play-btn {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      background: var(--accent);
+      border: none;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: transform 0.2s ease, background 0.8s ease;
+    }
+
+    .dock-play-btn:hover {
+      transform: scale(1.08);
+      filter: brightness(1.15);
+    }
+
+    .timeline-wrap {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      gap: 0.9rem;
+    }
+
+    .time-val {
+      font-size: 0.75rem;
+      color: var(--text-sub);
+      font-variant-numeric: tabular-nums;
+      min-width: 34px;
+    }
+
+    .timeline-rail {
+      flex: 1;
+      height: 4px;
+      background: rgba(255, 255, 255, 0.12);
+      border-radius: 999px;
+      cursor: pointer;
+      position: relative;
+    }
+
+    .timeline-bar {
+      width: 0%;
+      height: 100%;
+      background: #ffffff;
+      border-radius: 999px;
+      pointer-events: none;
+    }
+
+    .author-signature {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.74rem;
+      color: var(--text-sub);
+      flex-shrink: 0;
+      border-left: 1px solid rgba(255, 255, 255, 0.08);
+      padding-left: 1.3rem;
+    }
+
+    .author-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 10px var(--accent);
+      transition: background 0.8s ease;
+    }
+
+    .author-text {
+      font-family: 'Caveat', cursive;
+      font-size: 1.3rem;
+      color: #ffffff;
+      letter-spacing: 0.04em;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="ambientCanvas"></canvas>
+  <div class="dynamic-aura" id="dynamicAura"></div>
+
+  <header>
+    <div class="brand-section">
+      <div class="aura-logo">AuraStream</div>
+      <div class="lang-pill">
+        <span>Adapted to:</span>
+        <span class="lang-badge">HINDI ▼</span>
+      </div>
+    </div>
+
+    <div class="search-wrapper">
+      <input type="text" class="search-input" id="searchInput" placeholder="Search track, artist, film..." />
+      <button class="search-btn" onclick="executeSearch()">Search</button>
+    </div>
+  </header>
+
+  <div class="mood-rack">
+    <div class="mood-btn active" onclick="selectMood('top hindi chill acoustic lofi songs volume 1', this)">✨ Chill & Lo-Fi</div>
+    <div class="mood-btn" onclick="selectMood('sad hindi lofi midnight', this)">🌧️ Sad & Heartbreak</div>
+    <div class="mood-btn" onclick="selectMood('punjabi dance party hits 2026', this)">🔥 Dance & Party</div>
+    <div class="mood-btn" onclick="selectMood('romantic bollywood acoustic dil', this)">🌹 Romantic & Dil</div>
+    <div class="mood-btn" onclick="selectMood('gym workout phonk electronic', this)">⚡ Gym & Focus</div>
+  </div>
+
+  <div class="hint-dots-container" id="dotsContainer"></div>
+
+  <div id="feed"></div>
+
+  <div class="player-dock">
+    <img src="https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg" class="dock-art" id="dockArt" alt="" />
+    
+    <div class="dock-meta">
+      <span class="dock-title" id="dockTitle">Scroll to browse</span>
+      <span class="dock-sub" id="dockSub">Tap any vinyl to begin</span>
+    </div>
+
+    <div class="dock-controls">
+      <button class="dock-icon-btn" onclick="playPrevious()">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>
+      </button>
+      <button class="dock-play-btn" id="playBtn" onclick="togglePlay()">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" id="playIcon"><path d="M8 5v14l11-7z"/></svg>
+      </button>
+      <button class="dock-icon-btn" onclick="playNext()">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
+      </button>
+    </div>
+
+    <div class="timeline-wrap">
+      <span class="time-val" id="currTime">0:00</span>
+      <div class="timeline-rail" onclick="seekAudio(event)">
+        <div class="timeline-bar" id="timelineBar"></div>
+      </div>
+      <span class="time-val" id="durTime">0:00</span>
+    </div>
+
+    <div class="author-signature">
+      <span class="author-dot"></span>
+      <span>MADE BY</span>
+      <span class="author-text">Rudranil</span>
+    </div>
+  </div>
+
+  <audio id="audioEngine"></audio>
+
+  <script>
+    const API_BASE = "/api";
+
+    let activePlaylist = [];
+    let currentTrackIndex = -1;
+    let isFetching = false;
+    let currentMoodQuery = "top hindi chill acoustic lofi songs volume 1";
+    let currentQueryPage = 1;
+    let isShuffle = true;
+    
+    // Strict non-repeating tracking structures
+    const seenTrackIds = new Set();
+    const playedHistoryIds = new Set();
+    let unplayedQueue = [];
+    let scrollObserver = null;
+
+    // Discovery fallbacks to guarantee new unique songs across diverse genres
+    const SHUFFLE_SEEDS = [
+      "trending hindi acoustic",
+      "bollywood evergreen lofi chill",
+      "indie pop hindi sensations",
+      "soulful sufi unplugged",
+      "punjabi chill beats slow",
+      "coke studio best acoustic"
+    ];
+
+    const audio = document.getElementById("audioEngine");
+    const playIcon = document.getElementById("playIcon");
+    const feed = document.getElementById("feed");
+    const dockTitle = document.getElementById("dockTitle");
+    const dockSub = document.getElementById("dockSub");
+    const dockArt = document.getElementById("dockArt");
+    const timelineBar = document.getElementById("timelineBar");
+    const currTime = document.getElementById("currTime");
+    const durTime = document.getElementById("durTime");
+    const dotsContainer = document.getElementById("dotsContainer");
+
+    /* 3D Dynamic Deep Space Particle Nebula */
+    const canvas = document.getElementById("ambientCanvas");
+    const ctx = canvas.getContext("2d");
+    let particles = [];
+
+    function resizeCanvas() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    }
+    window.addEventListener("resize", resizeCanvas);
+    resizeCanvas();
+
+    class CosmicParticle {
+      constructor() {
+        this.reset();
+      }
+      reset() {
+        this.x = Math.random() * canvas.width;
+        this.y = Math.random() * canvas.height;
+        this.z = Math.random() * 2.2 + 0.6;
+        this.size = Math.random() * 2 + 0.5;
+        this.alpha = Math.random() * 0.45 + 0.1;
+        this.vx = (Math.random() - 0.5) * 0.3;
+        this.vy = -Math.random() * 0.35 - 0.1;
+      }
+      update() {
+        this.x += this.vx * this.z;
+        this.y += this.vy * this.z;
+        if (this.y < -10 || this.x < -10 || this.x > canvas.width + 10) {
+          this.reset();
+          this.y = canvas.height + 10;
+        }
+      }
+      draw() {
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.size * this.z, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(180, 200, 255, ${this.alpha})`;
+        ctx.fill();
+      }
+    }
+
+    for (let i = 0; i < 90; i++) particles.push(new CosmicParticle());
+
+    function animateSpace() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      particles.forEach(p => {
+        p.update();
+        p.draw();
+      });
+      requestAnimationFrame(animateSpace);
+    }
+    animateSpace();
+
+    /* Dynamic Poster Side Ambient Color Extraction */
+    function adaptColorsFromPoster(imgUrl) {
+      if (!imgUrl) return;
+      const img = new Image();
+      img.crossOrigin = "Anonymous";
+      img.src = imgUrl;
+      img.onload = () => {
+        try {
+          const offCanvas = document.createElement("canvas");
+          const offCtx = offCanvas.getContext("2d");
+          offCanvas.width = 16;
+          offCanvas.height = 16;
+          offCtx.drawImage(img, 0, 0, 16, 16);
+          const px = offCtx.getImageData(0, 0, 16, 16).data;
+
+          let r = 0, g = 0, b = 0, count = 0;
+          for (let i = 0; i < px.length; i += 4) {
+            const brightness = (px[i] + px[i + 1] + px[i + 2]) / 3;
+            if (brightness > 30 && brightness < 225) {
+              r += px[i];
+              g += px[i + 1];
+              b += px[i + 2];
+              count++;
+            }
+          }
+
+          if (count > 0) {
+            r = Math.round(r / count);
+            g = Math.round(g / count);
+            b = Math.round(b / count);
+            document.documentElement.style.setProperty("--accent-r", r);
+            document.documentElement.style.setProperty("--accent-g", g);
+            document.documentElement.style.setProperty("--accent-b", b);
+          }
+        } catch (e) {
+          // Keep active palette safely
+        }
+      };
+    }
+
+    /* Auto Advance and Infinite Non-Repeating Continuous Category Recommendation */
+    audio.addEventListener("ended", async () => {
+      await playNextTrack(true);
+    });
+
+    audio.addEventListener("timeupdate", () => {
+      if (!audio.duration) return;
+      const pct = (audio.currentTime / audio.duration) * 100;
+      timelineBar.style.width = pct + "%";
+      currTime.textContent = formatSec(audio.currentTime);
+      durTime.textContent = formatSec(audio.duration);
+    });
+
+    audio.addEventListener("play", () => {
+      playIcon.innerHTML = `<path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>`;
+      updatePlayingSlide(true);
+    });
+
+    audio.addEventListener("pause", () => {
+      playIcon.innerHTML = `<path d="M8 5v14l11-7z"/>`;
+      updatePlayingSlide(false);
+    });
+
+    function formatSec(sec) {
+      if (isNaN(sec)) return "0:00";
+      const m = Math.floor(sec / 60);
+      const s = Math.floor(sec % 60);
+      return `${m}:${s < 10 ? '0' : ''}${s}`;
+    }
+
+    function togglePlay() {
+      if (!audio.src) {
+        if (activePlaylist.length > 0) streamSongAt(0);
+        return;
+      }
+      if (audio.paused) {
+        audio.play().catch(e => console.error("Playback prevented:", e));
+      } else {
+        audio.pause();
+      }
+    }
+
+    async function playNextTrack(isAuto = false) {
+      // Ensure we always have unplayed candidates available
+      if (unplayedQueue.length <= 2) {
+        const currentSong = activePlaylist[currentTrackIndex] || activePlaylist[0];
+        let smartQuery = currentMoodQuery;
+
+        if (currentSong) {
+          const queryBase = (currentSong.artist || currentSong.uploader || currentSong.title).replace(/vevo|official|audio|video/gi, "").trim();
+          const randomSeed = SHUFFLE_SEEDS[Math.floor(Math.random() * SHUFFLE_SEEDS.length)];
+          smartQuery = `${queryBase} ${randomSeed}`;
+        }
+
+        currentQueryPage++;
+        await fetchTracks(smartQuery, false);
+      }
+
+      if (activePlaylist.length === 0) return;
+
+      let nextIndex = -1;
+
+      if (isShuffle && unplayedQueue.length > 0) {
+        // Pick from completely unplayed songs first
+        const randQueueIndex = Math.floor(Math.random() * unplayedQueue.length);
+        const chosenSong = unplayedQueue.splice(randQueueIndex, 1)[0];
+        nextIndex = activePlaylist.findIndex(s => s.id === chosenSong.id);
+      }
+
+      // Fallback: sequential next if all unplayed are exhausted
+      if (nextIndex === -1) {
+        nextIndex = (currentTrackIndex + 1) % activePlaylist.length;
+      }
+
+      streamSongAt(nextIndex);
+      scrollToSlide(nextIndex);
+    }
+
+    function playPrevious() {
+      if (currentTrackIndex > 0) {
+        streamSongAt(currentTrackIndex - 1);
+        scrollToSlide(currentTrackIndex - 1);
+      }
+    }
+
+    function playNext() {
+      playNextTrack(false);
+    }
+
+    function scrollToSlide(idx) {
+      const targetSlide = document.getElementById(`slide-${idx}`);
+      if (targetSlide) {
+        targetSlide.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    }
+
+    function seekAudio(e) {
+      if (!audio.duration) return;
+      const rect = e.currentTarget.getBoundingClientRect();
+      const clickPos = (e.clientX - rect.left) / rect.width;
+      audio.currentTime = clickPos * audio.duration;
+    }
+
+    /* Scroll Observer for Ambient Color Shifting & Dot Activation */
+    function setupScrollObserver() {
+      if (scrollObserver) scrollObserver.disconnect();
+
+      const slides = document.querySelectorAll(".dimension-slide");
+      const dots = document.querySelectorAll(".hint-dot");
+
+      scrollObserver = new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            const index = parseInt(entry.target.dataset.index);
+            dots.forEach(d => d.classList.remove("active"));
+            const activeDot = document.getElementById(`dot-${index}`);
+            if (activeDot) activeDot.classList.add("active");
+
+            const thumb = entry.target.dataset.thumb;
+            if (thumb) adaptColorsFromPoster(thumb);
+
+            if (index >= activePlaylist.length - 2 && !isFetching) {
+              currentQueryPage++;
+              fetchTracks(`${currentMoodQuery} volume ${currentQueryPage}`, false);
+            }
+          }
+        });
+      }, { root: feed, threshold: 0.55 });
+
+      slides.forEach(slide => scrollObserver.observe(slide));
+    }
+
+    /* Track Feed Resolution */
+    async function fetchTracks(query, reset = false) {
+      if (isFetching) return;
+      isFetching = true;
+
+      try {
+        const res = await fetch(`${API_BASE}/search?q=${encodeURIComponent(query)}`);
+        const data = await res.json();
+        const rawTracks = Array.isArray(data) ? data : (data.tracks || []);
+        
+        // Exclude all previously encountered songs
+        const freshSongs = rawTracks.filter(s => s && s.id && !seenTrackIds.has(s.id));
+
+        if (reset) {
+          feed.innerHTML = "";
+          dotsContainer.innerHTML = "";
+          activePlaylist = [];
+          unplayedQueue = [];
+          currentQueryPage = 1;
+        }
+
+        freshSongs.forEach(song => {
+          seenTrackIds.add(song.id);
+          unplayedQueue.push(song);
+          
+          const trackIdx = activePlaylist.length;
+          activePlaylist.push(song);
+
+          const thumb = song.thumbnail || song.poster || `https://i.ytimg.com/vi/${song.id}/hqdefault.jpg`;
+          const artist = song.artist || song.uploader || "AuraStream Soundscape";
+
+          const dot = document.createElement("div");
+          dot.className = `hint-dot ${trackIdx === 0 ? 'active' : ''}`;
+          dot.id = `dot-${trackIdx}`;
+          dot.onclick = () => scrollToSlide(trackIdx);
+          dotsContainer.appendChild(dot);
+
+          const slide = document.createElement("section");
+          slide.className = "dimension-slide";
+          slide.id = `slide-${trackIdx}`;
+          slide.dataset.index = trackIdx;
+          slide.dataset.thumb = thumb;
+          slide.innerHTML = `
+            <div class="song-layout">
+              <div class="context-tag">✦ INFINITE SOUNDSCAPE // #${trackIdx + 1}</div>
+              <h1 class="track-name">${song.title}</h1>
+              <div class="artist-name">${artist}</div>
+              <button class="action-btn" onclick="streamSongAt(${trackIdx})">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                Play Experience
+              </button>
+            </div>
+            <div class="cover-station" onclick="streamSongAt(${trackIdx})">
+              <div class="cover-aura"></div>
+              <div class="vinyl-disc">
+                <div class="vinyl-groove" style="background-image: url('${thumb}');"></div>
+              </div>
+              <img class="album-jacket" src="${thumb}" alt="Cover Art" />
+            </div>
+          `;
+          feed.appendChild(slide);
+        });
+
+        // If a query yielded only duplicates, pull from discovery seeds automatically
+        if (freshSongs.length === 0 && !reset) {
+          const fallbackSeed = SHUFFLE_SEEDS[Math.floor(Math.random() * SHUFFLE_SEEDS.length)];
+          currentQueryPage++;
+          setTimeout(() => fetchTracks(`${fallbackSeed} volume ${currentQueryPage}`, false), 300);
+        }
+
+        if (reset && activePlaylist[0]) {
+          const firstThumb = activePlaylist[0].thumbnail || activePlaylist[0].poster;
+          adaptColorsFromPoster(firstThumb);
+        }
+
+        setupScrollObserver();
+
+      } catch (err) {
+        console.error("Feed resolution error:", err);
+      } finally {
+        isFetching = false;
+      }
+    }
+
+    async function streamSongAt(idx) {
+      if (!activePlaylist[idx]) return;
+      currentTrackIndex = idx;
+      const song = activePlaylist[idx];
+      
+      // Register into played history and remove from unplayed pool
+      playedHistoryIds.add(song.id);
+      unplayedQueue = unplayedQueue.filter(s => s.id !== song.id);
+
+      const thumb = song.thumbnail || song.poster || `https://i.ytimg.com/vi/${song.id}/hqdefault.jpg`;
+      const artist = song.artist || song.uploader || "AuraStream Soundscape";
+
+      dockTitle.textContent = song.title;
+      dockSub.textContent = artist;
+      dockArt.src = thumb;
+
+      adaptColorsFromPoster(thumb);
+
+      try {
+        const res = await fetch(`${API_BASE}/stream/${song.id}`);
+        const streamData = await res.json();
+
+        if (streamData && streamData.streamUrl) {
+          audio.src = streamData.streamUrl;
+          await audio.play();
+        }
+      } catch (err) {
+        console.error("Playback error:", err);
+      }
+    }
+
+    function updatePlayingSlide(isPlaying) {
+      document.querySelectorAll(".dimension-slide").forEach((slide, idx) => {
+        if (idx === currentTrackIndex && isPlaying) {
+          slide.classList.add("playing");
+        } else {
+          slide.classList.remove("playing");
+        }
+      });
+    }
+
+    function selectMood(query, btn) {
+      currentMoodQuery = query;
+      document.querySelectorAll(".mood-btn").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      fetchTracks(query, true);
+    }
+
+    function executeSearch() {
+      const q = document.getElementById("searchInput").value.trim();
+      if (q) {
+        currentMoodQuery = q;
+        fetchTracks(q, true);
+      }
+    }
+
+    document.getElementById("searchInput").addEventListener("keydown", (e) => {
+      if (e.key === "Enter") executeSearch();
+    });
+
+    fetchTracks(currentMoodQuery, true);
+  </script>
+</body>
+</html>
