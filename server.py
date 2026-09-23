@@ -1,14 +1,13 @@
 import os
 import uvicorn
 import httpx
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 import yt_dlp
 
 app = FastAPI(title="AuraStream Backend")
 
-# Enable Cross-Origin Resource Sharing
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -17,19 +16,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 1. Serve the Visual Frontend Interface
 @app.get("/")
 async def serve_frontend():
     if os.path.exists("music.html"):
         return FileResponse("music.html")
-    return {"error": "music.html not found. Ensure it is uploaded to the root directory."}
+    return {"error": "music.html not found"}
 
-# Health Check Route
 @app.get("/health")
 async def health_check():
     return {"status": "ok", "service": "AuraStream Backend"}
 
-# 2. Search Endpoint for YouTube Tracks
 @app.get("/api/search")
 async def search_tracks(q: str = Query(..., description="Search query")):
     ydl_opts = {
@@ -56,9 +52,9 @@ async def search_tracks(q: str = Query(..., description="Search query")):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-# 3. Stream Proxy Endpoint
+# AUDIO PROXY: Pipes audio chunks directly so browsers bypass YouTube 403 / CORS bans
 @app.get("/api/stream/{video_id}")
-async def get_stream_url(video_id: str):
+async def stream_audio_proxy(video_id: str, request: Request):
     ydl_opts = {
         "format": "bestaudio[ext=m4a]/bestaudio/best",
         "quiet": True,
@@ -69,12 +65,44 @@ async def get_stream_url(video_id: str):
             info = ydl.extract_info(f"https://www.youtube.com/watch?v={video_id}", download=False)
             stream_url = info.get("url")
             if not stream_url:
-                raise HTTPException(status_code=404, detail="Direct audio stream not found")
-            return {"streamUrl": stream_url}
+                raise HTTPException(status_code=404, detail="Audio stream not found")
+
+        # Forward range headers for seamless mobile scrubbing
+        req_headers = {"User-Agent": "Mozilla/5.0"}
+        range_header = request.headers.get("range")
+        if range_header:
+            req_headers["Range"] = range_header
+
+        client = httpx.AsyncClient(timeout=30.0, follow_redirects=True)
+        upstream_req = client.build_request("GET", stream_url, headers=req_headers)
+        upstream_res = await client.send(upstream_req, stream=True)
+
+        async def audio_chunk_generator():
+            try:
+                async for chunk in upstream_res.aiter_bytes(chunk_size=65536):
+                    yield chunk
+            finally:
+                await upstream_res.aclose()
+                await client.aclose()
+
+        response_headers = {
+            "Accept-Ranges": "bytes",
+            "Content-Type": upstream_res.headers.get("content-type", "audio/mp4"),
+        }
+        if "content-length" in upstream_res.headers:
+            response_headers["Content-Length"] = upstream_res.headers["content-length"]
+        if "content-range" in upstream_res.headers:
+            response_headers["Content-Range"] = upstream_res.headers["content-range"]
+
+        return StreamingResponse(
+            audio_chunk_generator(),
+            status_code=upstream_res.status_code,
+            headers=response_headers,
+            media_type="audio/mp4"
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-# 4. Dynamic Port Launcher (Render Cloud & Local Support)
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))
     uvicorn.run("server:app", host="0.0.0.0", port=port)
