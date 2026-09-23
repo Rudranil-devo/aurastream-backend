@@ -782,16 +782,13 @@
     }
 
     async function playNextTrack() {
-      // If queue is running low, automatically fetch tracks based on the artist or category (not the track name)
       if (unplayedQueue.length <= 2) {
         const cur = activePlaylist[currentTrackIndex] || activePlaylist[0];
         let pivotQuery = "";
 
         if (cur && cur.artist && !cur.artist.includes("Topic") && !cur.artist.includes("Soundscape")) {
-          // Pivot search to other hit songs by the same singer/artist
           pivotQuery = `${cur.artist} greatest hits audio`;
         } else {
-          // Pivot to a varied mood radio seed
           pivotQuery = DISCOVERY_SEEDS[Math.floor(Math.random() * DISCOVERY_SEEDS.length)];
         }
         await fetchTracks(pivotQuery, false);
@@ -807,7 +804,6 @@
         }
       }
 
-      // Fallback: move to the next slide in sequence
       const nextIndex = (currentTrackIndex + 1) % activePlaylist.length;
       streamSongAt(nextIndex);
       scrollToSlide(nextIndex);
@@ -886,13 +882,11 @@
           seenSongTitles.clear();
         }
 
-        // Strict filtering: Discard duplicates by video ID AND by similar title
         const filteredNewTracks = [];
         for (const track of rawTracks) {
           if (!track || !track.id || seenTrackIds.has(track.id)) continue;
 
           const simplified = getCleanTitle(track.title);
-          // If we already added a song with this base title, skip covers/duplicates
           if (simplified.length > 3 && seenSongTitles.has(simplified)) continue;
 
           seenTrackIds.add(track.id);
@@ -940,8 +934,6 @@
           feed.appendChild(slide);
         });
 
-        // If the initial search for a specific title returned mostly duplicate covers, 
-        // immediately fetch additional tracks from the artist's discography to fill the queue
         if (reset && filteredNewTracks.length < 5 && filteredNewTracks[0]?.artist) {
           const leadArtist = filteredNewTracks[0].artist;
           setTimeout(() => fetchTracks(`${leadArtist} top tracks`, false), 400);
@@ -965,7 +957,6 @@
       currentTrackIndex = idx;
       const song = activePlaylist[idx];
 
-      // Remove from unplayed queue so it never repeats
       unplayedQueue = unplayedQueue.filter(s => s.id !== song.id);
 
       const thumb = song.thumbnail || `https://i.ytimg.com/vi/${song.id}/hqdefault.jpg`;
@@ -978,12 +969,9 @@
       adaptColorsFromPoster(thumb);
 
       try {
-        const res = await fetch(`${API_BASE}/stream/${song.id}`);
-        const streamData = await res.json();
-        if (streamData && streamData.streamUrl) {
-          audio.src = streamData.streamUrl;
-          await audio.play();
-        }
+        // Points directly to the streaming proxy route to bypass YouTube CORS & 403 blocks
+        audio.src = `${API_BASE}/stream/${song.id}`;
+        await audio.play();
       } catch (err) {
         console.error("Playback error:", err);
       }
