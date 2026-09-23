@@ -1,13 +1,14 @@
 import os
 import uvicorn
 import httpx
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Query
+from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
-from yt_dlp import YoutubeDL
+import yt_dlp
 
 app = FastAPI(title="AuraStream Backend")
 
+# Enable Cross-Origin Resource Sharing
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -16,105 +17,64 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-YTDL_SEARCH_OPTS = {
-    "format": "bestaudio/best",
-    "noplaylist": True,
-    "quiet": True,
-    "no_warnings": True,
-    "extract_flat": True,
-    "skip_download": True,
-}
-
-YTDL_STREAM_OPTS = {
-    "format": "bestaudio/best",
-    "noplaylist": True,
-    "quiet": True,
-    "no_warnings": True,
-    "skip_download": True,
-    "extractor_args": {
-        "youtube": {
-            "player_client": ["android", "ios", "web_safari"]
-        }
-    }
-}
-
+# 1. Serve the Visual Frontend Interface
 @app.get("/")
-def read_root():
+async def serve_frontend():
+    if os.path.exists("music.html"):
+        return FileResponse("music.html")
+    return {"error": "music.html not found. Ensure it is uploaded to the root directory."}
+
+# Health Check Route
+@app.get("/health")
+async def health_check():
     return {"status": "ok", "service": "AuraStream Backend"}
 
+# 2. Search Endpoint for YouTube Tracks
 @app.get("/api/search")
-def search_tracks(q: str):
-    if not q or not q.strip():
-        raise HTTPException(status_code=400, detail="Search query cannot be empty")
-    
+async def search_tracks(q: str = Query(..., description="Search query")):
+    ydl_opts = {
+        "format": "bestaudio/best",
+        "noplaylist": True,
+        "quiet": True,
+        "default_search": "ytsearch10",
+        "extract_flat": "in_playlist",
+    }
     try:
-        with YoutubeDL(YTDL_SEARCH_OPTS) as ydl:
-            result = ydl.extract_info(f"ytsearch15:{q}", download=False)
-            entries = result.get("entries", [])
-            
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(f"ytsearch10:{q}", download=False)
             tracks = []
-            for item in entries:
-                if not item:
-                    continue
-                tracks.append({
-                    "id": item.get("id"),
-                    "title": item.get("title"),
-                    "artist": item.get("uploader", "Unknown Artist"),
-                    "duration": item.get("duration", 0),
-                    "poster": f"https://i.ytimg.com/vi/{item.get('id')}/hqdefault.jpg"
-                })
-            return {"tracks": tracks}
+            if "entries" in info:
+                for entry in info["entries"]:
+                    if entry:
+                        tracks.append({
+                            "id": entry.get("id"),
+                            "title": entry.get("title"),
+                            "artist": entry.get("uploader") or entry.get("channel") or "AuraStream Artist",
+                            "thumbnail": entry.get("thumbnail") or f"https://i.ytimg.com/vi/{entry.get('id')}/hqdefault.jpg"
+                        })
+            return tracks
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+# 3. Stream Proxy Endpoint
 @app.get("/api/stream/{video_id}")
-def get_stream(video_id: str, request: Request):
+async def get_stream_url(video_id: str):
+    ydl_opts = {
+        "format": "bestaudio[ext=m4a]/bestaudio/best",
+        "quiet": True,
+        "noplaylist": True,
+    }
     try:
-        url = f"https://www.youtube.com/watch?v={video_id}"
-        with YoutubeDL(YTDL_STREAM_OPTS) as ydl:
-            info = ydl.extract_info(url, download=False)
-            
-            # Point the frontend to our own proxy streaming endpoint
-            base_host = str(request.base_url).rstrip("/")
-            proxy_url = f"{base_host}/api/proxy-audio/{video_id}"
-            
-            return {
-                "id": video_id,
-                "streamUrl": proxy_url,
-                "title": info.get("title"),
-                "artist": info.get("uploader", "AuraStream Artist")
-            }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.get("/api/proxy-audio/{video_id}")
-async def proxy_audio(video_id: str):
-    try:
-        url = f"https://www.youtube.com/watch?v={video_id}"
-        with YoutubeDL(YTDL_STREAM_OPTS) as ydl:
-            info = ydl.extract_info(url, download=False)
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(f"https://www.youtube.com/watch?v={video_id}", download=False)
             stream_url = info.get("url")
-        
-        client = httpx.AsyncClient()
-        req = client.build_request("GET", stream_url)
-        r = await client.send(req, stream=True)
-
-        async def stream_generator():
-            try:
-                async for chunk in r.aiter_raw():
-                    yield chunk
-            finally:
-                await r.aclose()
-                await client.aclose()
-
-        return StreamingResponse(
-            stream_generator(),
-            media_type="audio/mp4",
-            headers={"Accept-Ranges": "bytes"}
-        )
+            if not stream_url:
+                raise HTTPException(status_code=404, detail="Direct audio stream not found")
+            return {"streamUrl": stream_url}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+# 4. Dynamic Port Launcher (Render Cloud & Local Support)
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 8000))
+    port = int(os.environ.get("PORT", 8080))
     uvicorn.run("server:app", host="0.0.0.0", port=port)
